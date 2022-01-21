@@ -58,12 +58,11 @@ fn main(req: Request) -> Result<Response, Error> {
             // Send a Hello World response.
             Ok(Response::from_status(StatusCode::OK)
                 .with_body_text_plain("Hello world"))
-
-            // // Send a default synthetic response.
-            // Ok(Response::from_status(StatusCode::OK)
-            //     .with_content_type(mime::TEXT_HTML_UTF_8)
-            //     .with_body(include_str!("welcome-to-compute@edge.html")))
         }
+
+        "/chill" => Ok(Response::from_status(StatusCode::OK)
+            .with_content_type(mime::TEXT_HTML_UTF_8)
+            .with_body(include_str!("chill.html"))),
 
         // Catch all other requests and return a 404.
         _ => Ok(Response::from_status(StatusCode::NOT_FOUND)
