@@ -1,0 +1,25 @@
+# This file describes a Fastly Compute@Edge package. To learn more visit:
+# https://developer.fastly.com/reference/fastly-toml/
+
+authors = ["@mxdvl"]
+description = "Generate SVGs at the Edge"
+language = "rust"
+manifest_version = 2
+name = "rustvg"
+service_id = "2jU8qdgAOm7iYQXyEh6953"
+
+[local_server]
+
+  [local_server.backends]
+
+    [local_server.backends.backend_a]
+      url = "http://127.0.0.1/"
+
+    [local_server.backends.backend_b]
+      url = "https://example.org/"
+
+    [local_server.backends.backend_c]
+      url = "https://example.org/path/prefix"
+
+    [local_server.backends.backend_d]
+      url = "http://127.0.0.1:8080/"
