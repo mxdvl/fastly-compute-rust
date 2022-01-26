@@ -52,7 +52,7 @@ fn main(req: Request) -> Result<Response, Error> {
             .with_content_type(mime::TEXT_HTML_UTF_8)
             .with_body(include_str!("index.html"))),
 
-        "/great.svg" => {
+        "/clock.svg" => {
             let mut rng = thread_rng();
             let dt: DateTime<Utc> = Utc::now();
 
