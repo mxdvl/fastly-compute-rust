@@ -1,14 +1,20 @@
 //! Default Compute@Edge template program.
 
 use chrono::DateTime;
+use chrono::Timelike;
 use chrono::Utc;
+
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
+
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 
+use rand::{thread_rng, Rng};
+
 use svg::node::element::path::Data;
-use svg::node::element::{Path, Text as TextElement};
+use svg::node::element::Text as TextElement;
+use svg::node::element::{Circle, Group, Path, Rectangle};
 use svg::node::Text;
 use svg::Document;
 
@@ -35,49 +41,22 @@ fn main(req: Request) -> Result<Response, Error> {
         }
     };
 
+    let size = 120;
+    let thickness = 2;
+    let padding = thickness * 2;
+    let inner_width = size - (padding * 2 + thickness);
+
     // Pattern match on the path...
     match req.get_path() {
-        // If request is to the `/` path...
-        "/" => {
-            // Below are some common patterns for Compute@Edge services using Rust.
-            // Head to https://developer.fastly.com/learning/compute/rust/ to discover more.
-
-            // Create a new request.
-            // let mut bereq = Request::get("http://httpbin.org/headers")
-            //     .with_header("X-Custom-Header", "Welcome to Compute@Edge!")
-            //     .with_ttl(60);
-
-            // Add request headers.
-            // bereq.set_header(
-            //     "X-Another-Custom-Header",
-            //     "Recommended reading: https://developer.fastly.com/learning/compute",
-            // );
-
-            // Forward the request to a backend.
-            // let mut beresp = bereq.send("backend_name")?;
-
-            // Remove response headers.
-            // beresp.remove_header("X-Another-Custom-Header");
-
-            // Log to a Fastly endpoint.
-            // use std::io::Write;
-            // let mut endpoint = fastly::log::Endpoint::from_name("my_endpoint");
-            // writeln!(endpoint, "Hello from the edge!").unwrap();
-
-            // Send a Hello World response.
-            Ok(Response::from_status(StatusCode::OK).with_body_text_plain("Hello James"))
-        }
+        "/" => Ok(Response::from_status(StatusCode::OK)
+            .with_content_type(mime::TEXT_HTML_UTF_8)
+            .with_body(include_str!("index.html"))),
 
         "/great.svg" => {
-            let size = 120;
-            let thickness = 2;
-            let padding = thickness * 2;
-            let inner_width = size - (padding * 2 + thickness);
-
             let fg = "olivedrab";
             let bg = "cornsilk";
 
-            let utc: DateTime<Utc> = Utc::now();
+            let dt: DateTime<Utc> = Utc::now();
 
             let data = Data::new()
                 .move_to((thickness / 2, thickness / 2 + padding))
@@ -90,11 +69,68 @@ fn main(req: Request) -> Result<Response, Error> {
                 .elliptical_arc_by((padding, padding, 0, 0, 1, -padding, -padding))
                 .close();
 
+            let mut group = Group::new()
+                .set("fill", fg)
+                .set("stroke", bg)
+                .set("stroke-width", 0.25);
+
+            for n in 0..(dt.minute()) {
+                let x = (n % 8) as i32 * 12;
+                let y = (n / 8) as i32 * 12;
+                let rect = Rectangle::new()
+                    .set("x", x + padding)
+                    .set("y", y + padding)
+                    .set("rx", thickness)
+                    .set("width", thickness * 3)
+                    .set("height", thickness * 3);
+
+                group = group.clone().add(rect);
+            }
+
+            for n in 0..(dt.second()) {
+                let x = (n / 12) as i32 * 8;
+                let y = (n % 12) as i32 * 8;
+                let rect = Circle::new()
+                    .set("cx", x + padding * 2)
+                    .set("cy", y + padding * 2)
+                    .set("r", thickness);
+
+                group = group.clone().add(rect);
+            }
+
             let path = Path::new()
                 .set("fill", bg)
                 .set("stroke", fg)
                 .set("stroke-width", thickness)
                 .set("d", data);
+
+            let document = Document::new()
+                .set("width", size * 3)
+                .set("height", size * 3)
+                .set("viewBox", (0, 0, size, size))
+                .add(path)
+                .add(group);
+
+            Ok(Response::from_status(StatusCode::OK)
+                .with_content_type(mime::IMAGE_SVG)
+                .with_body(document.to_string()))
+        }
+
+        "/info.svg" => {
+            let mut rng = thread_rng();
+
+            let fg = ["olivedrab", "teal", "darkslategray", "maroon"][rng.gen_range(0..4)];
+            let bg = ["cornsilk", "bisque", "papayawhip", "palegoldenrod"][rng.gen_range(0..4)];
+
+            let rect = Rectangle::new()
+                .set("fill", bg)
+                .set("stroke", fg)
+                .set("stroke-width", thickness)
+                .set("x", thickness / 2)
+                .set("y", thickness / 2)
+                .set("rx", padding)
+                .set("width", size - thickness)
+                .set("height", size - thickness);
 
             let ip: String = req
                 .get_client_ip_addr()
@@ -105,34 +141,22 @@ fn main(req: Request) -> Result<Response, Error> {
                 .set("x", size / 2)
                 .set("text-anchor", "middle")
                 .set("y", 16 + padding)
+                .set("font-family", "GuardianTextSansWeb, Helvetica, sans-serif")
                 .set("font-size", 16)
                 .set("fill", fg)
                 .add(Text::new(["IP: ", &ip].concat()));
-
-            let time = TextElement::new()
-                .set("x", size / 2)
-                .set("text-anchor", "middle")
-                .set("y", 32 + padding)
-                .set("font-size", 16)
-                .set("fill", fg)
-                .add(Text::new(utc.format("%H:%M:%S").to_string()));
 
             let document = Document::new()
                 .set("width", size * 3)
                 .set("height", size * 3)
                 .set("viewBox", (0, 0, size, size))
-                .add(path)
-                .add(text)
-                .add(time);
+                .add(rect)
+                .add(text);
 
             Ok(Response::from_status(StatusCode::OK)
                 .with_content_type(mime::IMAGE_SVG)
                 .with_body(document.to_string()))
         }
-
-        "/chill" => Ok(Response::from_status(StatusCode::OK)
-            .with_content_type(mime::TEXT_HTML_UTF_8)
-            .with_body(include_str!("chill.html"))),
 
         // Catch all other requests and return a 404.
         _ => Ok(Response::from_status(StatusCode::NOT_FOUND)
