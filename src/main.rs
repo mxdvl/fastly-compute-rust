@@ -1,6 +1,7 @@
 //! Default Compute@Edge template program.
 
 use chrono::DateTime;
+use chrono::TimeZone;
 use chrono::Timelike;
 use chrono::Utc;
 
@@ -54,7 +55,15 @@ fn main(req: Request) -> Result<Response, Error> {
 
         "/clock.svg" => {
             let mut rng = thread_rng();
-            let dt: DateTime<Utc> = Utc::now();
+            let dt: DateTime<Utc> = match req.get_query_parameter("rand") {
+                Some(_) => Utc.ymd(2022, 1, 26).and_hms(
+                    rng.gen_range(0..24),
+                    rng.gen_range(0..60),
+                    rng.gen_range(0..60),
+                ),
+
+                None => Utc::now(),
+            };
 
             let am = dt.hour12().0;
 
@@ -108,7 +117,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
             for n in 0..(dt.minute()) {
                 let x = (n % 12) as i32 * grid;
-                let y = (n / 12) as i32 * grid * 2;
+                let y = (n / 12) as i32 * grid * 2 + (n % 2) as i32 * grid;
                 let rect = Circle::new()
                     .set("cx", x)
                     .set("cy", y)
