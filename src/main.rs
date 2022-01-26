@@ -54,11 +54,15 @@ fn main(req: Request) -> Result<Response, Error> {
 
         "/great.svg" => {
             let mut rng = thread_rng();
-
-            let fg = ["olivedrab", "teal", "darkslategray", "maroon"][rng.gen_range(0..4)];
-            let bg = ["cornsilk", "bisque", "papayawhip", "palegoldenrod"][rng.gen_range(0..4)];
-
             let dt: DateTime<Utc> = Utc::now();
+
+            let am = dt.hour12().0;
+
+            let dark = ["olivedrab", "teal", "darkslategray", "maroon"][rng.gen_range(0..4)];
+            let light = ["cornsilk", "bisque", "papayawhip", "palegoldenrod"][rng.gen_range(0..4)];
+
+            let fg = if am { dark } else { light };
+            let bg = if am { light } else { dark };
 
             let data = Data::new()
                 .move_to((thickness / 2, thickness / 2 + padding))
