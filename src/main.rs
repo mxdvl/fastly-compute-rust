@@ -2,6 +2,13 @@
 
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
+
+use svg::node::element::path::Data;
+use svg::node::element::{Path, Text as TextElement};
+use svg::node::Text;
+use svg::Document;
 
 /// The entry point for your application.
 ///
@@ -56,8 +63,62 @@ fn main(req: Request) -> Result<Response, Error> {
             // writeln!(endpoint, "Hello from the edge!").unwrap();
 
             // Send a Hello World response.
+            Ok(Response::from_status(StatusCode::OK).with_body_text_plain("Hello James"))
+        }
+
+        "/great.svg" => {
+            let data = Data::new()
+                .move_to((10, 10))
+                .line_by((0, 50))
+                .line_by((50, 0))
+                .line_by((0, -50))
+                .close();
+
+            let path = Path::new()
+                .set("fill", "none")
+                .set("stroke", "black")
+                .set("stroke-width", 5)
+                .set("d", data);
+
+            let ip: String = req
+                .get_client_ip_addr()
+                .unwrap_or(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)))
+                .to_string();
+
+            let text = TextElement::new()
+                .set("x", 15)
+                .set("y", 25)
+                .set("font-size", 9)
+                .add(Text::new(ip));
+
+            let document = Document::new()
+                .set("viewBox", (0, 0, 70, 70))
+                .add(path)
+                .add(text);
+
             Ok(Response::from_status(StatusCode::OK)
-                .with_body_text_plain("Hello world"))
+                .with_content_type(mime::IMAGE_SVG)
+                .with_body(document.to_string()))
+        }
+
+        "/bad.svg" => {
+            let data = Data::new()
+                .move_to((10, 10))
+                .line_by((0, 50))
+                .line_by((50, 0))
+                .line_by((0, -50))
+                .close();
+
+            let path = Path::new()
+                .set("fill", "red")
+                .set("stroke", "none")
+                .set("d", data);
+
+            let document = Document::new().set("viewBox", (0, 0, 70, 70)).add(path);
+
+            Ok(Response::from_status(StatusCode::OK)
+                .with_content_type(mime::IMAGE_SVG)
+                .with_body(document.to_string()))
         }
 
         "/chill" => Ok(Response::from_status(StatusCode::OK)
