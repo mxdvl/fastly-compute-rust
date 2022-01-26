@@ -1,5 +1,7 @@
 //! Default Compute@Edge template program.
 
+use chrono::DateTime;
+use chrono::Utc;
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
 use std::net::IpAddr;
@@ -67,17 +69,31 @@ fn main(req: Request) -> Result<Response, Error> {
         }
 
         "/great.svg" => {
+            let size = 120;
+            let thickness = 2;
+            let padding = thickness * 2;
+            let inner_width = size - (padding * 2 + thickness);
+
+            let fg = "olivedrab";
+            let bg = "cornsilk";
+
+            let utc: DateTime<Utc> = Utc::now();
+
             let data = Data::new()
-                .move_to((10, 10))
-                .line_by((0, 50))
-                .line_by((50, 0))
-                .line_by((0, -50))
+                .move_to((thickness / 2, thickness / 2 + padding))
+                .elliptical_arc_by((padding, padding, 0, 0, 1, padding, -padding))
+                .horizontal_line_by(inner_width)
+                .elliptical_arc_by((padding, padding, 0, 0, 1, padding, padding))
+                .vertical_line_by(inner_width)
+                .elliptical_arc_by((padding, padding, 0, 0, 1, -padding, padding))
+                .horizontal_line_by(-inner_width)
+                .elliptical_arc_by((padding, padding, 0, 0, 1, -padding, -padding))
                 .close();
 
             let path = Path::new()
-                .set("fill", "none")
-                .set("stroke", "black")
-                .set("stroke-width", 5)
+                .set("fill", bg)
+                .set("stroke", fg)
+                .set("stroke-width", thickness)
                 .set("d", data);
 
             let ip: String = req
@@ -86,35 +102,28 @@ fn main(req: Request) -> Result<Response, Error> {
                 .to_string();
 
             let text = TextElement::new()
-                .set("x", 15)
-                .set("y", 25)
-                .set("font-size", 9)
-                .add(Text::new(ip));
+                .set("x", size / 2)
+                .set("text-anchor", "middle")
+                .set("y", 16 + padding)
+                .set("font-size", 16)
+                .set("fill", fg)
+                .add(Text::new(["IP: ", &ip].concat()));
+
+            let time = TextElement::new()
+                .set("x", size / 2)
+                .set("text-anchor", "middle")
+                .set("y", 32 + padding)
+                .set("font-size", 16)
+                .set("fill", fg)
+                .add(Text::new(utc.format("%H:%M:%S").to_string()));
 
             let document = Document::new()
-                .set("viewBox", (0, 0, 70, 70))
+                .set("width", size * 3)
+                .set("height", size * 3)
+                .set("viewBox", (0, 0, size, size))
                 .add(path)
-                .add(text);
-
-            Ok(Response::from_status(StatusCode::OK)
-                .with_content_type(mime::IMAGE_SVG)
-                .with_body(document.to_string()))
-        }
-
-        "/bad.svg" => {
-            let data = Data::new()
-                .move_to((10, 10))
-                .line_by((0, 50))
-                .line_by((50, 0))
-                .line_by((0, -50))
-                .close();
-
-            let path = Path::new()
-                .set("fill", "red")
-                .set("stroke", "none")
-                .set("d", data);
-
-            let document = Document::new().set("viewBox", (0, 0, 70, 70)).add(path);
+                .add(text)
+                .add(time);
 
             Ok(Response::from_status(StatusCode::OK)
                 .with_content_type(mime::IMAGE_SVG)
