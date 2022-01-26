@@ -16,7 +16,7 @@ use svg::node::element::path::Data;
 use svg::node::element::Text as TextElement;
 use svg::node::element::{Circle, Group, Path, Rectangle};
 use svg::node::Text;
-use svg::Document;
+use svg::{Document, Node};
 
 /// The entry point for your application.
 ///
@@ -53,8 +53,10 @@ fn main(req: Request) -> Result<Response, Error> {
             .with_body(include_str!("index.html"))),
 
         "/great.svg" => {
-            let fg = "olivedrab";
-            let bg = "cornsilk";
+            let mut rng = thread_rng();
+
+            let fg = ["olivedrab", "teal", "darkslategray", "maroon"][rng.gen_range(0..4)];
+            let bg = ["cornsilk", "bisque", "papayawhip", "palegoldenrod"][rng.gen_range(0..4)];
 
             let dt: DateTime<Utc> = Utc::now();
 
@@ -69,33 +71,59 @@ fn main(req: Request) -> Result<Response, Error> {
                 .elliptical_arc_by((padding, padding, 0, 0, 1, -padding, -padding))
                 .close();
 
-            let mut group = Group::new()
-                .set("fill", fg)
-                .set("stroke", bg)
-                .set("stroke-width", 0.25);
+            let grid = 9;
 
-            for n in 0..(dt.minute()) {
-                let x = (n % 8) as i32 * 12;
-                let y = (n / 8) as i32 * 12;
-                let rect = Rectangle::new()
-                    .set("x", x + padding)
-                    .set("y", y + padding)
-                    .set("rx", thickness)
-                    .set("width", thickness * 3)
-                    .set("height", thickness * 3);
+            let mut hours = Group::new().set("fill", fg).set("stroke", "none").set(
+                "transform",
+                format!(
+                    "translate({},{})",
+                    padding * 2 + grid * 6,
+                    padding * 2 + grid * 10
+                ),
+            );
 
-                group = group.clone().add(rect);
+            for n in 0..(dt.hour() % 12) {
+                let x = (n % 6) as i32 * grid;
+                let y = (n / 6) as i32 * grid;
+                let rect = Circle::new()
+                    .set("cx", x)
+                    .set("cy", y)
+                    .set("r", thickness * 2);
+
+                hours.append(rect);
             }
 
-            for n in 0..(dt.second()) {
-                let x = (n / 12) as i32 * 8;
-                let y = (n % 12) as i32 * 8;
-                let rect = Circle::new()
-                    .set("cx", x + padding * 2)
-                    .set("cy", y + padding * 2)
-                    .set("r", thickness);
+            let mut minutes = Group::new()
+                .set("fill", "none")
+                .set("stroke", fg)
+                .set("stroke-width", thickness)
+                .set(
+                    "transform",
+                    format!("translate({},{})", padding * 2, padding * 2),
+                );
 
-                group = group.clone().add(rect);
+            for n in 0..(dt.minute()) {
+                let x = (n % 12) as i32 * grid;
+                let y = (n / 12) as i32 * grid * 2;
+                let rect = Circle::new()
+                    .set("cx", x)
+                    .set("cy", y)
+                    .set("r", thickness * 2);
+
+                minutes.append(rect);
+            }
+
+            let mut seconds = Group::new().set("fill", fg).set("stroke", "none").set(
+                "transform",
+                format!("translate({},{})", padding * 2, padding * 2),
+            );
+
+            for n in 0..(dt.second()) {
+                let x = (n / 12) as i32 * grid;
+                let y = (n % 12) as i32 * grid;
+                let rect = Circle::new().set("cx", x).set("cy", y).set("r", thickness);
+
+                seconds.append(rect);
             }
 
             let path = Path::new()
@@ -109,7 +137,9 @@ fn main(req: Request) -> Result<Response, Error> {
                 .set("height", size * 3)
                 .set("viewBox", (0, 0, size, size))
                 .add(path)
-                .add(group);
+                .add(hours)
+                .add(minutes)
+                .add(seconds);
 
             Ok(Response::from_status(StatusCode::OK)
                 .with_content_type(mime::IMAGE_SVG)
