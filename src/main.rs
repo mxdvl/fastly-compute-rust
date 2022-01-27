@@ -4,11 +4,13 @@ use chrono::DateTime;
 use chrono::TimeZone;
 use chrono::Timelike;
 use chrono::Utc;
+use serde_json::Value;
 
 use fastly::http::body::PrefixString;
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
 
+// use itertools::join;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 
@@ -24,12 +26,6 @@ fn pick_randomly<'a>(items: &'a [&str]) -> &'a str {
     let mut rng = thread_rng();
 
     items[rng.gen_range(0..items.len())]
-}
-
-fn body_prefix_val(prefix: Result<PrefixString, std::str::Utf8Error>) -> String {
-    prefix
-        .map(|body_prefix| body_prefix.to_string())
-        .unwrap_or_else(|_| String::new())
 }
 
 const UPSTASH_API: &str = "upstash";
@@ -182,22 +178,33 @@ fn main(req: Request) -> Result<Response, Error> {
             let id = rng.gen_range(0..max);
 
             let endpoint = format!(
-                "{api}/set/{key}/{value}",
+                "{api}/set/{key}/1/EX/48",
                 api = "https://us1-worthy-duckling-35789.upstash.io",
-                key = id,
-                value = "present"
+                key = id
             );
 
             let auth = format!("Bearer {}", "");
 
-            let api_req = Request::get(endpoint).with_header("Authorization", auth);
+            let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io")
+                .with_header("Authorization", &auth)
+                .with_body(format!("[\"SET\", \"{key}\", 1, \"EX\", 120]", key = id));
             let mut beresp = api_req.send(UPSTASH_API)?;
-            // let beresp_body = beresp.take_body();
 
-            println!(
-                "{}",
-                body_prefix_val(beresp.try_get_body_prefix_str_mut(1024))
-            );
+            let ids = &[
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
+                45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65,
+                66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
+            ]
+            .map(|n| n.to_string())
+            .join(",");
+
+            let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io")
+                .with_header("Authorization", &auth)
+                .with_body(format!("[\"MGET\", {keys}]", keys = ids));
+            let beresp = api_req.send(UPSTASH_API)?;
+
+            let data: Value = serde_json::from_str(&beresp.into_body_str())?;
 
             let dark = pick_randomly(&["olivedrab", "teal", "darkslategray", "maroon"]);
             let light = pick_randomly(&["cornsilk", "bisque", "papayawhip", "palegoldenrod"]);
@@ -217,11 +224,15 @@ fn main(req: Request) -> Result<Response, Error> {
             let mut dots = Group::new().set("fill", dark);
 
             for n in 0..max {
-                let x = (n / edge) * grid;
-                let y = (n % edge) * grid;
-                let dot = Circle::new().set("cx", x).set("cy", y).set("r", thickness);
+                let present: bool = !data.pointer(&format!("/result/{}", n)).unwrap().is_null();
+                println!("Position {}: {}", n, present);
 
-                dots.append(dot);
+                if present || n == id {
+                    let x = (n / edge) * grid;
+                    let y = (n % edge) * grid;
+                    let dot = Circle::new().set("cx", x).set("cy", y).set("r", thickness);
+                    dots.append(dot)
+                }
             }
 
             let dot = Circle::new()
