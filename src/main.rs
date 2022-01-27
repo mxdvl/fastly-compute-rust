@@ -4,9 +4,9 @@ use chrono::DateTime;
 use chrono::TimeZone;
 use chrono::Timelike;
 use chrono::Utc;
+use fastly::Dictionary;
 use serde_json::Value;
 
-use fastly::http::body::PrefixString;
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
 
@@ -177,24 +177,24 @@ fn main(req: Request) -> Result<Response, Error> {
 
             let id = rng.gen_range(0..max);
 
-            let endpoint = format!(
-                "{api}/set/{key}/1/EX/48",
-                api = "https://us1-worthy-duckling-35789.upstash.io",
-                key = id
-            );
+            let dict = Dictionary::open("tokens");
+            let token = dict
+                .get("UPSTASH_TOKEN")
+                .unwrap_or("--missing--".to_string());
 
-            let auth = format!("Bearer {}", "");
+            let auth = format!("Bearer {}", token);
 
             let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io")
                 .with_header("Authorization", &auth)
-                .with_body(format!("[\"SET\", \"{key}\", 1, \"EX\", 120]", key = id));
-            let mut beresp = api_req.send(UPSTASH_API)?;
+                .with_body(format!("[\"SET\", \"{key}\", 1, \"EX\", 48]", key = id));
+            // let mut beresp =
+            api_req.send(UPSTASH_API)?;
 
             let ids = &[
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-                45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65,
-                66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,
+                44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64,
+                65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
             ]
             .map(|n| n.to_string())
             .join(",");
@@ -225,7 +225,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
             for n in 0..max {
                 let present: bool = !data.pointer(&format!("/result/{}", n)).unwrap().is_null();
-                println!("Position {}: {}", n, present);
+                // println!("Position {}: {}", n, present);
 
                 if present || n == id {
                     let x = (n / edge) * grid;
@@ -250,46 +250,6 @@ fn main(req: Request) -> Result<Response, Error> {
                 .add(rect)
                 .add(dots)
                 .add(dot);
-
-            Ok(Response::from_status(StatusCode::OK)
-                .with_content_type(mime::IMAGE_SVG)
-                .with_body(document.to_string()))
-        }
-
-        "/info.svg" => {
-            let fg = ["olivedrab", "teal", "darkslategray", "maroon"][rng.gen_range(0..4)];
-            let bg = ["cornsilk", "bisque", "papayawhip", "palegoldenrod"][rng.gen_range(0..4)];
-
-            let rect = Rectangle::new()
-                .set("fill", bg)
-                .set("stroke", fg)
-                .set("stroke-width", thickness)
-                .set("x", thickness / 2)
-                .set("y", thickness / 2)
-                .set("rx", padding)
-                .set("width", size - thickness)
-                .set("height", size - thickness);
-
-            let ip: String = req
-                .get_client_ip_addr()
-                .unwrap_or(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)))
-                .to_string();
-
-            let text = TextElement::new()
-                .set("x", size / 2)
-                .set("text-anchor", "middle")
-                .set("y", 16 + padding)
-                .set("font-family", "GuardianTextSansWeb, Helvetica, sans-serif")
-                .set("font-size", 16)
-                .set("fill", fg)
-                .add(Text::new(["IP: ", &ip].concat()));
-
-            let document = Document::new()
-                .set("width", size * 3)
-                .set("height", size * 3)
-                .set("viewBox", (0, 0, size, size))
-                .add(rect)
-                .add(text);
 
             Ok(Response::from_status(StatusCode::OK)
                 .with_content_type(mime::IMAGE_SVG)

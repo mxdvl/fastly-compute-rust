@@ -17,3 +17,8 @@ service_id = "2jU8qdgAOm7iYQXyEh6953"
 
     [local_server.backends.upstash]
       url = "https://us1-worthy-duckling-35789.upstash.io/"
+
+  [local_server.dictionaries]
+    [local_server.dictionaries.tokens]
+      file = "tokens.json"
+      format = "json"
