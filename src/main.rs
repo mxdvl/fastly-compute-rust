@@ -10,16 +10,10 @@ use serde_json::Value;
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
 
-// use itertools::join;
-use std::net::IpAddr;
-use std::net::Ipv4Addr;
-
 use rand::{thread_rng, Rng};
 
 use svg::node::element::path::Data;
-use svg::node::element::Text as TextElement;
 use svg::node::element::{Circle, Group, Path, Rectangle};
-use svg::node::Text;
 use svg::{Document, Node};
 
 fn pick_randomly<'a>(items: &'a [&str]) -> &'a str {
@@ -186,7 +180,7 @@ fn main(req: Request) -> Result<Response, Error> {
 
             let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io")
                 .with_header("Authorization", &auth)
-                .with_body(format!("[\"SET\", \"{key}\", 1, \"EX\", 48]", key = id));
+                .with_body(format!("[\"SET\", \"{key}\", 1, \"EX\", 12]", key = id));
             // let mut beresp =
             api_req.send(UPSTASH_API)?;
 
@@ -222,8 +216,11 @@ fn main(req: Request) -> Result<Response, Error> {
             let mut dots = Group::new().set("fill", dark);
 
             for n in 0..max {
-                let present: bool = !data.pointer(&format!("/result/{}", n)).unwrap().is_null();
-                // println!("Position {}: {}", n, present);
+                let present: bool = match data.pointer(&format!("/result/{}", n)) {
+                    Some(val) => !val.is_null(),
+                    None => false,
+                };
+                println!("Position {}: {}", n, present);
 
                 if present || n == id {
                     let x = (n / edge) * grid;
@@ -241,10 +238,20 @@ fn main(req: Request) -> Result<Response, Error> {
                 .set("cy", (id % edge) * grid)
                 .set("r", thickness * 3);
 
+            let margin = 20;
+
             let document = Document::new()
-                .set("width", size * 3)
-                .set("height", size * 3)
-                .set("viewBox", (-grid, -grid, size, size))
+                .set("width", (size + margin) * 3)
+                .set("height", (size + margin) * 3)
+                .set(
+                    "viewBox",
+                    (
+                        -grid - margin / 2,
+                        -grid - margin / 2,
+                        size + margin,
+                        size + margin,
+                    ),
+                )
                 .add(rect)
                 .add(dots)
                 .add(dot);
