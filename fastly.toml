@@ -15,11 +15,5 @@ service_id = "2jU8qdgAOm7iYQXyEh6953"
     [local_server.backends.backend_a]
       url = "http://127.0.0.1/"
 
-    [local_server.backends.backend_b]
-      url = "https://example.org/"
-
-    [local_server.backends.backend_c]
-      url = "https://example.org/path/prefix"
-
-    [local_server.backends.backend_d]
-      url = "http://127.0.0.1:8080/"
+    [local_server.backends.upstash]
+      url = "https://us1-worthy-duckling-35789.upstash.io/"

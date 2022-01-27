@@ -5,6 +5,7 @@ use chrono::TimeZone;
 use chrono::Timelike;
 use chrono::Utc;
 
+use fastly::http::body::PrefixString;
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
 
@@ -18,6 +19,20 @@ use svg::node::element::Text as TextElement;
 use svg::node::element::{Circle, Group, Path, Rectangle};
 use svg::node::Text;
 use svg::{Document, Node};
+
+fn pick_randomly<'a>(items: &'a [&str]) -> &'a str {
+    let mut rng = thread_rng();
+
+    items[rng.gen_range(0..items.len())]
+}
+
+fn body_prefix_val(prefix: Result<PrefixString, std::str::Utf8Error>) -> String {
+    prefix
+        .map(|body_prefix| body_prefix.to_string())
+        .unwrap_or_else(|_| String::new())
+}
+
+const UPSTASH_API: &str = "upstash";
 
 /// The entry point for your application.
 ///
@@ -42,6 +57,8 @@ fn main(req: Request) -> Result<Response, Error> {
         }
     };
 
+    let mut rng = thread_rng();
+
     let size = 120;
     let thickness = 2;
     let padding = thickness * 2;
@@ -54,7 +71,6 @@ fn main(req: Request) -> Result<Response, Error> {
             .with_body(include_str!("index.html"))),
 
         "/clock.svg" => {
-            let mut rng = thread_rng();
             let dt: DateTime<Utc> = match req.get_query_parameter("rand") {
                 Some(_) => Utc.ymd(2022, 1, 26).and_hms(
                     rng.gen_range(0..24),
@@ -67,8 +83,8 @@ fn main(req: Request) -> Result<Response, Error> {
 
             let am = dt.hour12().0;
 
-            let dark = ["olivedrab", "teal", "darkslategray", "maroon"][rng.gen_range(0..4)];
-            let light = ["cornsilk", "bisque", "papayawhip", "palegoldenrod"][rng.gen_range(0..4)];
+            let dark = pick_randomly(&["olivedrab", "teal", "darkslategray", "maroon"]);
+            let light = pick_randomly(&["cornsilk", "bisque", "papayawhip", "palegoldenrod"]);
 
             let fg = if am { dark } else { light };
             let bg = if am { light } else { dark };
@@ -159,9 +175,77 @@ fn main(req: Request) -> Result<Response, Error> {
                 .with_body(document.to_string()))
         }
 
-        "/info.svg" => {
-            let mut rng = thread_rng();
+        "/presence.svg" => {
+            let edge = 9;
+            let max = edge * edge;
 
+            let id = rng.gen_range(0..max);
+
+            let endpoint = format!(
+                "{api}/set/{key}/{value}",
+                api = "https://us1-worthy-duckling-35789.upstash.io",
+                key = id,
+                value = "present"
+            );
+
+            let auth = format!("Bearer {}", "");
+
+            let api_req = Request::get(endpoint).with_header("Authorization", auth);
+            let mut beresp = api_req.send(UPSTASH_API)?;
+            // let beresp_body = beresp.take_body();
+
+            println!(
+                "{}",
+                body_prefix_val(beresp.try_get_body_prefix_str_mut(1024))
+            );
+
+            let dark = pick_randomly(&["olivedrab", "teal", "darkslategray", "maroon"]);
+            let light = pick_randomly(&["cornsilk", "bisque", "papayawhip", "palegoldenrod"]);
+
+            let grid = 12;
+
+            let rect = Rectangle::new()
+                .set("fill", light)
+                .set("stroke", dark)
+                .set("stroke-width", thickness)
+                .set("x", thickness / 2 - grid)
+                .set("y", thickness / 2 - grid)
+                .set("rx", grid)
+                .set("width", size - thickness)
+                .set("height", size - thickness);
+
+            let mut dots = Group::new().set("fill", dark);
+
+            for n in 0..max {
+                let x = (n / edge) * grid;
+                let y = (n % edge) * grid;
+                let dot = Circle::new().set("cx", x).set("cy", y).set("r", thickness);
+
+                dots.append(dot);
+            }
+
+            let dot = Circle::new()
+                .set("fill", "none")
+                .set("stroke", dark)
+                .set("stroke-width", thickness)
+                .set("cx", (id / edge) * grid)
+                .set("cy", (id % edge) * grid)
+                .set("r", thickness * 3);
+
+            let document = Document::new()
+                .set("width", size * 3)
+                .set("height", size * 3)
+                .set("viewBox", (-grid, -grid, size, size))
+                .add(rect)
+                .add(dots)
+                .add(dot);
+
+            Ok(Response::from_status(StatusCode::OK)
+                .with_content_type(mime::IMAGE_SVG)
+                .with_body(document.to_string()))
+        }
+
+        "/info.svg" => {
             let fg = ["olivedrab", "teal", "darkslategray", "maroon"][rng.gen_range(0..4)];
             let bg = ["cornsilk", "bisque", "papayawhip", "palegoldenrod"][rng.gen_range(0..4)];
 
