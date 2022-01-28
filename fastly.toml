@@ -5,7 +5,7 @@ authors = ["@mxdvl"]
 description = "Generate SVGs at the Edge"
 language = "rust"
 manifest_version = 2
-name = "rustvg"
+name = "fastly-compute-rust"
 service_id = "2jU8qdgAOm7iYQXyEh6953"
 
 [local_server]
