@@ -7,6 +7,7 @@ use chrono::Utc;
 use fastly::Dictionary;
 use serde_json::Value;
 
+use fastly::http::body::PrefixString;
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
 
@@ -20,6 +21,12 @@ fn pick_randomly<'a>(items: &'a [&str]) -> &'a str {
     let mut rng = thread_rng();
 
     items[rng.gen_range(0..items.len())]
+}
+
+fn body_prefix_val(prefix: Result<PrefixString, std::str::Utf8Error>) -> String {
+    prefix
+        .map(|body_prefix| body_prefix.to_string())
+        .unwrap_or_else(|_| String::new())
 }
 
 const UPSTASH_API: &str = "upstash";
@@ -178,23 +185,32 @@ fn main(req: Request) -> Result<Response, Error> {
 
             let auth = format!("Bearer {}", token);
 
-            let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io")
-                .with_header("Authorization", &auth)
-                .with_body(format!("[\"SET\", \"{key}\", 1, \"EX\", 12]", key = id));
-            // let mut beresp =
-            api_req.send(UPSTASH_API)?;
-
             let ids = (0..=81)
                 .collect::<Vec<u32>>()
                 .into_iter()
                 .map(|n| n.to_string())
                 .collect::<Vec<String>>()
-                .join(",");
+                .join(", ");
 
-            let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io")
+            let payload_text = format!(
+                r#"[
+                    ["SET", {key}, 1, "EX", 120],
+                    ["MGET", {keys}]
+                ]"#,
+                key = id,
+                keys = ids
+            );
+
+            let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io/pipeline")
+                .with_header("Host", "us1-worthy-duckling-35789.upstash.io")
                 .with_header("Authorization", &auth)
-                .with_body(format!("[\"MGET\", {keys}]", keys = ids));
-            let beresp = api_req.send(UPSTASH_API)?;
+                .with_body(payload_text);
+            let mut beresp = api_req.send(UPSTASH_API)?;
+
+            println!(
+                "{}",
+                body_prefix_val(beresp.try_get_body_prefix_str_mut(1024))
+            );
 
             let data: Value = serde_json::from_str(&beresp.into_body_str())?;
 
@@ -216,11 +232,11 @@ fn main(req: Request) -> Result<Response, Error> {
             let mut dots = Group::new().set("fill", dark);
 
             for n in 0..max {
-                let present: bool = match data.pointer(&format!("/result/{}", n)) {
+                let present: bool = match data.pointer(&format!("/1/result/{}", n)) {
                     Some(val) => !val.is_null(),
                     None => false,
                 };
-                println!("Position {}: {}", n, present);
+                // println!("Position {}: {}", n, present);
 
                 if present || n == id {
                     let x = (n / edge) * grid;
