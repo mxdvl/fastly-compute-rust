@@ -1,6 +1,6 @@
 This runs on Fastly’s **Compute@Edge**
 
-![clock](https://manually-emerging-asp.edgecompute.app/clock.svg)
+![presence](https://manually-emerging-asp.edgecompute.app/presence.svg)
 
 Useful commands:
 - `fastly compute serve --skip-verification --watch`
