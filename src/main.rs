@@ -1,5 +1,7 @@
 //! Default Compute@Edge template program.
 
+use cookie::Cookie;
+
 use chrono::DateTime;
 use chrono::TimeZone;
 use chrono::Timelike;
@@ -9,7 +11,7 @@ use fastly::Dictionary;
 use serde_json::Value;
 
 use fastly::http::body::PrefixString;
-use fastly::http::{header, Method, StatusCode};
+use fastly::http::{header, HeaderValue, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
 
 use rand::{thread_rng, Rng};
@@ -31,14 +33,6 @@ fn body_prefix_val(prefix: Result<PrefixString, std::str::Utf8Error>) -> String 
 }
 
 const UPSTASH_API: &str = "upstash";
-
-/// The entry point for your application.
-///
-/// This function is triggered when your service receives a client request. It could be used to
-/// route based on the request properties (such as method or path), send the request to a backend,
-/// make completely new requests, and/or generate synthetic responses.
-///
-/// If `main` returns an error, a 500 error response will be delivered to the client.
 
 #[fastly::main]
 fn main(req: Request) -> Result<Response, Error> {
@@ -179,7 +173,11 @@ fn main(req: Request) -> Result<Response, Error> {
             let edge = 9;
             let max = edge * edge;
 
-            let id = rng.gen_range(0..max);
+            let id: i32 = req
+                .get_header(header::COOKIE)
+                .and_then(|h| h.to_str().ok())
+                .and_then(|v| Cookie::parse(v).ok()?.value().parse().ok())
+                .unwrap_or(rng.gen_range(0..max));
 
             let dict = Dictionary::open("tokens");
             let token = dict
@@ -255,7 +253,7 @@ fn main(req: Request) -> Result<Response, Error> {
                     },
                 };
 
-                if opacity > 0.0 || n == id {
+                if opacity > 0.0 {
                     let x = (n / edge) * grid;
                     let y = (n % edge) * grid;
                     let dot = Circle::new()
@@ -294,6 +292,7 @@ fn main(req: Request) -> Result<Response, Error> {
                 .add(dot);
 
             Ok(Response::from_status(StatusCode::OK)
+                .with_header(header::SET_COOKIE, format!("value={}", (id + 2) % max))
                 .with_content_type(mime::IMAGE_SVG)
                 .with_body(document.to_string()))
         }
