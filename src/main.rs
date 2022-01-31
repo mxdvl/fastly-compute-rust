@@ -5,6 +5,7 @@ use chrono::TimeZone;
 use chrono::Timelike;
 use chrono::Utc;
 use fastly::Dictionary;
+
 use serde_json::Value;
 
 use fastly::http::body::PrefixString;
@@ -173,6 +174,8 @@ fn main(req: Request) -> Result<Response, Error> {
         }
 
         "/presence.svg" => {
+            let dt = Utc::now();
+
             let edge = 9;
             let max = edge * edge;
 
@@ -192,13 +195,19 @@ fn main(req: Request) -> Result<Response, Error> {
                 .collect::<Vec<String>>()
                 .join(", ");
 
+            let ts = dt.timestamp();
+
+            let expire = 120;
+
             let payload_text = format!(
                 r#"[
-                    ["SET", {key}, 1, "EX", 120],
+                    ["SET", {key}, {value}, "EX", {ex}],
                     ["MGET", {keys}]
                 ]"#,
                 key = id,
-                keys = ids
+                value = ts,
+                keys = ids,
+                ex = expire,
             );
 
             let api_req = Request::post("https://us1-worthy-duckling-35789.upstash.io/pipeline")
@@ -232,16 +241,28 @@ fn main(req: Request) -> Result<Response, Error> {
             let mut dots = Group::new().set("fill", dark);
 
             for n in 0..max {
-                let present: bool = match data.pointer(&format!("/1/result/{}", n)) {
-                    Some(val) => !val.is_null(),
-                    None => false,
+                let opacity: f64 = match data.pointer(&format!("/1/result/{}", n)) {
+                    None => 0.0,
+                    Some(val) => match val.as_str() {
+                        None => 0.0,
+                        Some(num) => match num.parse::<i64>() {
+                            Ok(offset) => {
+                                println!("Position {}: {} - {} = {}", n, ts, offset, ts - offset);
+                                1.0 - (ts - offset) as f64 / expire as f64
+                            }
+                            Err(_) => 0.0,
+                        },
+                    },
                 };
-                // println!("Position {}: {}", n, present);
 
-                if present || n == id {
+                if opacity > 0.0 || n == id {
                     let x = (n / edge) * grid;
                     let y = (n % edge) * grid;
-                    let dot = Circle::new().set("cx", x).set("cy", y).set("r", thickness);
+                    let dot = Circle::new()
+                        .set("cx", x)
+                        .set("cy", y)
+                        .set("r", thickness)
+                        .set("opacity", format!("{:.1$}", opacity, 4));
                     dots.append(dot)
                 }
             }
